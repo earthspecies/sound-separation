@@ -61,11 +61,16 @@ def main(conf):
 
     #build dataset metadata
     left_path = os.path.join(conf["dataset_path"],'Left')
-    left = sorted([file.name for file in os.scandir(left_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()])
+    left = {file.name.split('_',1)[1]:file.name.split('_',1)[0] for file in os.scandir(left_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()}
     right_path = os.path.join(conf["dataset_path"],'Right')
-    right = sorted([file.name for file in os.scandir(right_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()])
-    # # md = pd.DataFrame(columns=['ID', 'path', 'channel'])
-
+    right = {file.name.split('_',1)[1]:file.name.split('_',1)[0] for file in os.scandir(right_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()}
+    md = pd.DataFrame(columns=['ID_left', 'ID_right', 'left_path', 'right_path','timestamp','time'])
+    i=0
+    for timestamp,id in (left.items()):
+        if timestamp in right.keys():
+            md.loc[i] = [id, right[timestamp], id+'_'+timestamp, right[timestamp]+'_'+timestamp, timestamp[:-4], pd.to_datetime(timestamp[:-4],format="%B_%d_%Y_%f")]
+            i+=1
+    
     #load tf mixit model
     graph = tf.Graph()
     sess = tf.Session(graph=graph)
@@ -88,13 +93,9 @@ def main(conf):
         #[n.name for n in tf.get_default_graph().as_graph_def().node]
 
         #segmentation and grouping of short events 
-        for i in range(len(left)-30,len(left)):
-            parts = left[i].split('_',1)
-            timestamp = parts[1].split('.wav')[0]
-            if right[i].split('_',1)[1] != left[i].split('_',1)[1]:
-                print('Left and right files do not match')
-                continue
-            for c,p in {'Left':left[i],'Right':right[i]}.items():
+        for index, row in md.iterrows():
+            timestamp = row['timestamp']
+            for c,p in {'Left':row['left_path'],'Right':row['right_path']}.items():
                 input_mix,sample_rate = librosa.load(os.path.join(conf["dataset_path"],c,p))
                 # ### DC offset removal
                 # freq_cut=150 #Hz - higher frequency cutoff since these are bird sounds
