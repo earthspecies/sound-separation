@@ -1,5 +1,6 @@
 '''
-python mixit_separation.py --dataset_path /home/jupyter/data/zebra_finch/Audio --model_dir /home/jupyter/data/bird_mixit_model_checkpoints/ 
+python filter_tracks.py --dataset_path /home/jupyter/data/zebra_finch/Audio 
+assumes the separation has been done and the files are in the separation folder
 '''
 import os, sys
 import argparse
@@ -11,8 +12,7 @@ import librosa
 import csv
 import soundfile as sf
 import norbert
-
-import pcen_snr
+import csv
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -83,6 +83,37 @@ def wiener_filter(pred_bird,pred_noise):
 
     return pred_bird, pred_noise
 
+def threshold_activity(x, Tp, Ta):
+    locs = scipy.signal.find_peaks(x,height = Tp)[0]
+    y = (x > Ta) * 1
+    act = np.diff(y)
+    u = np.where(act == 1)[0]
+    d = np.where(act == -1)[0]
+    signal_length = len(x)
+    
+    if d[0] < u[0]:
+        u = np.insert(u, 0, 0)
+        
+    if d[-1] < u[-1]:
+        d = np.append(d, signal_length-1)
+        
+    starts = []
+    ends = []
+    
+    activity = np.zeros(signal_length,)
+    
+    for candidate_up, candidate_down in zip(u, d):
+        candidate_segment = range(candidate_up, candidate_down)
+        peaks_in_segment = [x in candidate_segment for x in locs]
+        is_valid_candidate = np.any(peaks_in_segment)
+        if is_valid_candidate:
+            starts.append(candidate_up)
+            ends.append(candidate_down)
+            activity[candidate_segment] = 1.0
+            
+    starts = np.array(starts)
+    ends = np.array(ends)
+    return activity, starts, ends
 
 def main(conf):
    
@@ -147,8 +178,39 @@ def main(conf):
                     
                 sf.write(os.path.join(conf["save_dir"],'{}-bird.wav'.format(row['timestamp'])), pred_bird.transpose(), sample_rate, 'PCM_24')
                 sf.write(os.path.join(conf["save_dir"],'{}-noise.wav'.format(row['timestamp'])), pred_noise.transpose(), sample_rate, 'PCM_24')
-              
+                frames2time = 512/sample_rate
+                rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(pred_bird, window=np.ones, center=False))[0]).squeeze()
+                rms[0] = librosa.util.normalize(rms[0]) 
+                rms[1] = librosa.util.normalize(rms[1]) 
+                rms = scipy.ndimage.uniform_filter1d(rms, size=5)
+                activity, start, end = [], [], []
+                for i in range(2):
+                    a, s, e = threshold_activity(rms[i], 0.01 , 0.1)
+                    activity.append(a)
+                    start.append(s)
+                    end.append(e)
+               
+                # fig, ax = plt.subplots(figsize=(10,6))
+                # ax.plot(rms[0], label='left',color='green')
+                # ax.plot(rms[1], label='right',color='red')
+                # colors = ['green','red']
+                birds = ['left','right']
+                for i in range(2):
+                    bird_events = []
+                    for s,e in zip(start[i], end[i]):
+                        if rms[i][s:e].mean() > rms[i-1][s:e].mean() or np.abs(rms[i][s:e].max() - rms[i-1][s:e].max()) < 0.1:
+                            bird_events.append([np.round(s*frames2time,2),np.round(e*frames2time,2)])
+                            # ax.axvspan(s, e, alpha=0.2, color=colors[i])
+
+                    with open(os.path.join(conf["save_dir"],'{}-{}.csv'.format(row['timestamp'],birds[i])), 'w') as f:
+                        write = csv.writer(f)
+                        write.writerow(['start','end'])
+                        write.writerows(bird_events)
+               
+                # plt.legend()
+                # plt.show()
                 #import pdb;pdb.set_trace()
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
