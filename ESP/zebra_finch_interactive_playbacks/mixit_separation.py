@@ -1,5 +1,5 @@
 '''
-python mixit_separation.py --dataset_path /home/jupyter/data/zebra_finch/Audio --model_dir /home/jupyter/data/bird_mixit_model_checkpoints/
+python mixit_separation.py --dataset_path /home/jupyter/data/zebra_finch/Audio --model_dir /home/jupyter/data/bird_mixit_model_checkpoints/ 
 '''
 import os, sys
 import argparse
@@ -20,13 +20,12 @@ import matplotlib.pyplot as plt
 import sklearn
 from sklearn import cluster, pipeline
 
-import tensorflow as tf2
+
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
-tf.compat.v1.enable_eager_execution()
+#tf.compat.v1.enable_eager_execution()
 
-import tensorflow_hub
-
+#import vggish_slim, vggish_params
 
 from contextlib import redirect_stdout
 
@@ -43,24 +42,10 @@ parser.add_argument(
     "--model_dir", type=str, required=True, help="Local path to mixit model directory"
 )
 
+# parser.add_argument(
+#     "--vggish_dir", type=str, required=True, help="Local path to vggish model directory"
+# )
 
-# Find the name of the class with the top score when mean-aggregated across frames.
-def class_names_from_csv(class_map_csv_text):
-    """Returns list of class names corresponding to score vector."""
-    class_names = []
-    with tf.io.gfile.GFile(class_map_csv_text) as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            class_names.append(row['display_name'])
-
-    return class_names
-
-@tf.function
-def compute(model, audio):
-  scores, _, _ = model(audio)
-  return scores
-
-@tf.function
 def main(conf):
    
     model_dict = {4:'3223090',8:'2178900'}
@@ -77,11 +62,11 @@ def main(conf):
     left = {file.name.split('_',1)[1]:file.name.split('_',1)[0] for file in os.scandir(left_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()}
     right_path = os.path.join(conf["dataset_path"],'Right')
     right = {file.name.split('_',1)[1]:file.name.split('_',1)[0] for file in os.scandir(right_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()}
-    md = pd.DataFrame(columns=['ID_left', 'ID_right', 'left_path', 'right_path','timestamp','time'])
+    md = pd.DataFrame(columns=['ID_left', 'ID_right', 'sep_path','left_path', 'right_path','timestamp','time'])
     i=0
     for timestamp,id in (left.items()):
         if timestamp in right.keys():
-            md.loc[i] = [id, right[timestamp], id+'_'+timestamp, right[timestamp]+'_'+timestamp, timestamp[:-4], pd.to_datetime(timestamp[:-4],format="%B_%d_%Y_%f")]
+            md.loc[i] = [id, right[timestamp], os.path.join(conf['save_dir'],timestamp[:-4]), id+'_'+timestamp, right[timestamp]+'_'+timestamp, timestamp[:-4], pd.to_datetime(timestamp[:-4],format="%B_%d_%Y_%f")]
             i+=1
     
     #load tf mixit model
@@ -93,14 +78,26 @@ def main(conf):
         saver = tf.train.import_meta_graph(meta_graph_filename)
         meta_graph_def = g.as_graph_def()
     
-    graph1 = tf.Graph()
-    sess1 = tf.compat.v1.Session(graph=graph1)
-    yamnet_model = tensorflow_hub.load('https://tfhub.dev/google/yamnet/1')
-    # class_map_path = yamnet_model.class_map_path().numpy()
-    # class_names = class_names_from_csv(class_map_path)
+    # graph1 = tf.Graph()
+    # sess1 = tf.Session(graph=graph1)
+    # # Get the list of names of all VGGish variables that exist in
+    # # the checkpoint (i.e., all inference-mode VGGish variables).
+    # with graph1.as_default():
+    #     vggish_slim.define_vggish_slim(training=False)
+    #     vggish_var_names = [v.name for v in graph1.as_graph_def().node]
+
+    #     # Get the list of all currently existing variables that match
+    #     # the list of variable names we just computed.
+    #     vggish_vars = [v for v in graph1.as_graph_def().node if v.name in vggish_var_names]
+
+    #     # Use a Saver to restore just the variables selected above.
+    #     saver = tf.train.Saver(vggish_vars, name='vggish_load_pretrained',
+    #                             write_version=1)
+    #     checkpoint_path = os.path.join(conf["vggish_dir"],'vggish_model.ckpt')
+    #     saver.restore(sess1, checkpoint_path)
 
     #tf.compat.v1.disable_eager_execution()
-    with sess as ss, sess1 as ss1:
+    with sess as ss:
         saver.restore(ss, os.path.join(conf["model_dir"],"output_sources"+str(NSOURCES),"model.ckpt-"+model_dict[NSOURCES]))
     
         input_tensor_name = 'input_audio/receiver_audio:0'
@@ -114,7 +111,8 @@ def main(conf):
         # pars = [n.name for n in tf.get_default_graph().as_graph_def().node if hasattr(n, 'op') and n.op == 'Const']
         
 
-        # md.sort_values(by='time',inplace=True)
+        #md.sort_values(by='time',inplace=True)
+        md.to_csv(os.path.join(conf["save_dir"],'metadata.csv'))
         drop_first = True
         for index, row in md.iterrows():
             # if drop_first:
@@ -127,11 +125,11 @@ def main(conf):
             mini_dict = {'Left':row['left_path'],'Right':row['right_path']}
             for c,p in mini_dict.items():
                 input_mix,sample_rate = librosa.load(os.path.join(conf["dataset_path"],c,p))
-                # ### DC offset removal
-                lowcut=200 #Hz - higher frequency cutoff since these are bird sounds
-                highcut=10000 #Hz - higher frequency cutoff since these are bird sounds
-                [b,a] = scipy.signal.butter(4,[lowcut, highcut], fs=sample_rate, btype='band')
+                # # ### DC offset removal
+                lowcut=100 #Hz - higher frequency cutoff since these are bird sounds
+                [b,a] = scipy.signal.butter(4,lowcut, fs=sample_rate, btype='high')
                 input_wav = scipy.signal.lfilter(b,a,input_mix)
+               
                 
                 # # rms is not a good measure because some signals have low amplitude while air conditioning ones have high amplitude
                 # rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(input_wav, window=np.ones, center=False))[0])
@@ -146,19 +144,23 @@ def main(conf):
             if onsets[0]<ONSET_THRESHOLD and onsets[1]<ONSET_THRESHOLD:
                 print("Skipping "+timestamp+" because both channels have low onset strength.")
                 continue
-
-
-                # ### save audio
-                # sf.write(os.path.join(conf["save_dir"],'{}-{}.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(input_wav), sample_rate, 'PCM_24')
-                # for s in range(NSOURCES):
-                #     sf.write(os.path.join(conf["save_dir"],'{}-{}-source{}.wav'.format(timestamp,p.split('_',1)[0],s+1)), separated_waveforms[s], sample_rate, 'PCM_24')
-              
            
-            centroids = 'k-means++'
+            #centroids = 'k-means++'
             for i,c in enumerate(mini_dict):
                 p = mini_dict[c]
                 #import pdb;pdb.set_trace()
                 input_wav = audio[i][np.newaxis,np.newaxis,:]
+
+                ### all together now
+                separated_waveforms = sess.run(
+                    output_tensor,
+                    feed_dict={input_placeholder: input_wav})[0]
+                
+                ### save audio
+                #sf.write(os.path.join(conf["save_dir"],'{}-{}.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(input_wav), sample_rate, 'PCM_24')
+                for s in range(NSOURCES):
+                    sf.write(os.path.join(conf["save_dir"],'{}-{}-source{}.wav'.format(timestamp,p.split('_',1)[0],s+1)), separated_waveforms[s], sample_rate, 'PCM_24')
+              
                 # masks = sess.run(
                 #     mask_tensor,
                 #     feed_dict={input_placeholder: input_wav})[0]
@@ -175,26 +177,8 @@ def main(conf):
                 #     audio_id =  [index for index,value in enumerate(1-km.labels_) if value == 1][0]
                 # else:
                 #     import pdb;pdb.set_trace()  
-                ### all together now
-                separated_waveforms = sess.run(
-                    output_tensor,
-                    feed_dict={input_placeholder: input_wav})[0]
                 
-                for waveform in separated_waveforms:
-                    waveform = waveform / tf.int16.max
-                    
-                    import pdb;pdb.set_trace()
-
-                    outs = ss1.run(compute(yamnet_model,waveform), 
-                        feed_dict={input_placeholder: waveform})
-                    scores, _, _ = yamnet_model(waveform)
-                    scores_np = scores.numpy()
-                    infered_class = class_names[scores_np.mean(axis=0).argmax()]
-                    print(f'The main sound is: {infered_class}')
-
-
-
-                
+    
                 # clean = separated_waveforms[audio_id]
                 # noise = np.sum(separated_waveforms[[index for index in range(NSOURCES) if index!=audio_id]],axis=0) 
                 # sf.write(os.path.join(conf["save_dir"],'{}-{}.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(input_wav), sample_rate, 'PCM_24')
@@ -210,6 +194,3 @@ if __name__ == "__main__":
     arg_dic = dict(vars(args))
 
     main(arg_dic)
-
-#########
-# python mixit_separation_vanilla.py --dataset_path /home/marius/data/spanish-carrion-crows/ --model_dir /home/marius/data/bird_mixit_model_checkpoints/
