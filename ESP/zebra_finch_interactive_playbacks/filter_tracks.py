@@ -194,22 +194,34 @@ def main(conf):
                 # ax.plot(rms[0], label='left',color='green')
                 # ax.plot(rms[1], label='right',color='red')
                 # colors = ['green','red']
+
                 birds = ['left','right']
                 for i in range(2):
                     bird_events = []
                     for s,e in zip(start[i], end[i]):
-                        if rms[i][s:e].mean() > rms[i-1][s:e].mean() or np.abs(rms[i][s:e].max() - rms[i-1][s:e].max()) < 0.1:
-                            bird_events.append([np.round(s*frames2time,2),np.round(e*frames2time,2)])
+                        #search with searchsorted for a overlapping interval in i-1 
+                        sidx = np.searchsorted(start[i-1], s)
+                        eidx = np.searchsorted(end[i-1], e)
+                        intersect = 0
+                        if sidx< len(start[i-1]) and start[i-1][sidx] < e and end[i-1][sidx] > s:
+                            intersect = min(end[i-1][sidx], e) - max(start[i-1][sidx], s) 
+                        if eidx<len(end[i-1]) and start[i-1][eidx] < e and end[i-1][eidx] > s:
+                            intersect = min(end[i-1][eidx], e) - max(start[i-1][eidx], s) 
+                        # if intersect:
+                        #     print('overlap {} {} {} {} {} {} {}'.format(s,e,start[i-1][sidx],end[i-1][sidx],start[i-1][eidx],end[i-1][eidx], intersect))
+                        #     import pdb;pdb.set_trace()
+                        if 2*intersect<(e-s) or rms[i][s:e].mean() > rms[i-1][s:e].mean() or np.abs(rms[i][s:e].max() - rms[i-1][s:e].max()) < 0.2: #this thresholding might be tricky
+                            bird_events.append([np.round(s*frames2time,2),np.round(e*frames2time,2),rms[i][s:e].mean()])
                             # ax.axvspan(s, e, alpha=0.2, color=colors[i])
 
                     with open(os.path.join(conf["save_dir"],'{}-{}.csv'.format(row['timestamp'],birds[i])), 'w') as f:
                         write = csv.writer(f)
-                        write.writerow(['start','end'])
+                        write.writerow(['start','end','rms'])
                         write.writerows(bird_events)
                
                 # plt.legend()
                 # plt.show()
-                #import pdb;pdb.set_trace()
+                # import pdb;pdb.set_trace()
 
 
 if __name__ == "__main__":
