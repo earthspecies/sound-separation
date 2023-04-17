@@ -1,5 +1,5 @@
 '''
-python filter_tracks.py --dataset_path /home/jupyter/data/zebra_finch/Audio 
+python filter_tracks.py --dataset_path /home/jupyter/data/zebra_finch/Pair1/Audio 
 assumes the separation has been done and the files are in the separation folder
 '''
 import os, sys
@@ -133,6 +133,7 @@ def main(conf):
 
 
     md = pd.read_csv(os.path.join(conf["dataset_path"],'separation','metadata.csv'))
+    filtered_md = pd.DataFrame(columns=["timestamp","time","ID_left","ID_right","sep_path","bird","noise","left_csv","right_csv"])
     
     for index, row in md.iterrows():
         audio = []
@@ -176,8 +177,8 @@ def main(conf):
                 if WIENER:
                     pred_bird, pred_noise = wiener_filter(pred_bird, pred_noise)            
                     
-                sf.write(os.path.join(conf["save_dir"],'{}-bird.wav'.format(row['timestamp'])), pred_bird.transpose(), sample_rate, 'PCM_24')
-                sf.write(os.path.join(conf["save_dir"],'{}-noise.wav'.format(row['timestamp'])), pred_noise.transpose(), sample_rate, 'PCM_24')
+                sf.write(os.path.join(conf["save_dir"],'{}-{}-{}-bird.wav'.format(row['timestamp'], row['ID_left'], row['ID_right'])), pred_bird.transpose(), sample_rate, 'PCM_24')
+                sf.write(os.path.join(conf["save_dir"],'{}-{}-{}-noise.wav'.format(row['timestamp'], row['ID_left'], row['ID_right'])), pred_noise.transpose(), sample_rate, 'PCM_24')
                 frames2time = 512/sample_rate
                 rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(pred_bird, window=np.ones, center=False))[0]).squeeze()
                 rms[0] = librosa.util.normalize(rms[0]) 
@@ -195,7 +196,8 @@ def main(conf):
                 # ax.plot(rms[1], label='right',color='red')
                 # colors = ['green','red']
 
-                birds = ['left','right']
+                birds = [row['ID_left'],row['ID_right']]
+                channels = ['left','right']
                 for i in range(2):
                     bird_events = []
                     for s,e in zip(start[i], end[i]):
@@ -214,7 +216,7 @@ def main(conf):
                             bird_events.append([np.round(s*frames2time,2),np.round(e*frames2time,2),rms[i][s:e].mean()])
                             # ax.axvspan(s, e, alpha=0.2, color=colors[i])
 
-                    with open(os.path.join(conf["save_dir"],'{}-{}.csv'.format(row['timestamp'],birds[i])), 'w') as f:
+                    with open(os.path.join(conf["save_dir"],'{}-{}-{}.csv'.format(row['timestamp'],channels[i],birds[i])), 'w') as f:
                         write = csv.writer(f)
                         write.writerow(['start','end','rms'])
                         write.writerows(bird_events)
@@ -222,6 +224,11 @@ def main(conf):
                 # plt.legend()
                 # plt.show()
                 # import pdb;pdb.set_trace()
+
+                rowf = [row['time'],row['timestamp'], row['ID_left'], row['ID_right'], row["sep_path"],'{}-{}-{}-bird.wav'.format(row['timestamp'], row['ID_left'], row['ID_right']),'{}-{}-{}-noise.wav'.format(row['timestamp'], row['ID_left'], row['ID_right']),'{}-{}-{}.csv'.format(row['timestamp'],'left',birds[0]),'{}-{}-{}.csv'.format(row['timestamp'],'right',birds[1])]
+                filtered_md.loc[len(filtered_md)] = rowf
+    
+    filtered_md.to_csv(os.path.join(conf["save_dir"],'metadata.csv'), index=False)
 
 
 if __name__ == "__main__":
