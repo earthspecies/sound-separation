@@ -85,32 +85,45 @@ def wiener_filter(pred_bird,pred_noise):
 
 def threshold_activity(x, Tp, Ta):
     locs = scipy.signal.find_peaks(x,height = Tp)[0]
-    y = (x > Ta) * 1
-    act = np.diff(y)
-    u = np.where(act == 1)[0]
-    d = np.where(act == -1)[0]
-    signal_length = len(x)
-    
-    if d[0] < u[0]:
-        u = np.insert(u, 0, 0)
-        
-    if d[-1] < u[-1]:
-        d = np.append(d, signal_length-1)
-        
-    starts = []
-    ends = []
-    
-    activity = np.zeros(signal_length,)
-    
-    for candidate_up, candidate_down in zip(u, d):
-        candidate_segment = range(candidate_up, candidate_down)
-        peaks_in_segment = [x in candidate_segment for x in locs]
-        is_valid_candidate = np.any(peaks_in_segment)
-        if is_valid_candidate:
-            starts.append(candidate_up)
-            ends.append(candidate_down)
-            activity[candidate_segment] = 1.0
+    if len(locs) > 1:
+        y = (x > Ta) * 1
+        act = np.diff(y)
+        u = np.where(act == 1)[0]
+        d = np.where(act == -1)[0]
+        signal_length = len(x)
+        if len(u) > 0 and len(d) > 0:
+            if d[0] < u[0]:
+                u = np.insert(u, 0, 0)
+                
+            if d[-1] < u[-1]:
+                d = np.append(d, signal_length-1)
+                
+            starts = []
+            ends = []
             
+            activity = np.zeros(signal_length,)
+            
+            for candidate_up, candidate_down in zip(u, d):
+                candidate_segment = range(candidate_up, candidate_down)
+                peaks_in_segment = [x in candidate_segment for x in locs]
+                is_valid_candidate = np.any(peaks_in_segment)
+                if is_valid_candidate:
+                    starts.append(candidate_up)
+                    ends.append(candidate_down)
+                    activity[candidate_segment] = 1.0
+        else:
+            starts = []
+            ends = []
+            activity = np.zeros(
+                len(x),
+            )
+    else:
+        starts = []
+        ends = []
+        activity = np.zeros(
+            len(x),
+        )
+                            
     starts = np.array(starts)
     ends = np.array(ends)
     return activity, starts, ends
