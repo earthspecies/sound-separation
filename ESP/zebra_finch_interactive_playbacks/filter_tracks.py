@@ -73,7 +73,7 @@ def wiener_filter(pred_bird,pred_noise):
     # Wiener
     specs = norbert.wiener(sources, mix_spec, use_softmask=False, iterations=30)
     specs = np.transpose(sources, [3, 2, 1, 0])
- 
+
     # Building output specs with filtered mags and original phases
     # import pdb;pdb.set_trace()
     bird_spec = np.abs(specs[0, :, :, :]) * np.exp(1j * bird_phase)
@@ -116,7 +116,6 @@ def threshold_activity(x, Tp, Ta):
     return activity, starts, ends
 
 def main(conf):
-   
 
     if os.path.isdir(conf["dataset_path"]):
         conf["save_dir"] = os.path.join(conf["dataset_path"],'filtered')
@@ -126,7 +125,8 @@ def main(conf):
         sys.exit(1)
 
     ### yamnet
-    model = hub.load('https://tfhub.dev/google/yamnet/1')
+    with tf.device('/CPU:0'):
+        model = hub.load('https://tfhub.dev/google/yamnet/1')
     class_map_path = model.class_map_path().numpy()
     class_names = class_names_from_csv(class_map_path)
     bird_ids = [i for i,c in enumerate(class_names) if c in CLASSES.values()]

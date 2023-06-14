@@ -1,5 +1,5 @@
 '''
-python mixit_separation.py --dataset_path /home/jupyter/data/zebra_finch/Audio --model_dir /home/jupyter/data/bird_mixit_model_checkpoints/ 
+python mixit_separation.py --dataset_path /home/jupyter/data/zebra_finch/Pair1/Audio --model_dir /home/jupyter/data/bird_mixit_model_checkpoints/ 
 '''
 import os, sys
 import argparse
