@@ -30,7 +30,7 @@ tf.disable_v2_behavior()
 from contextlib import redirect_stdout
 
 MIN_FILE_SIZE = 1000
-ONSET_THRESHOLD = 4e-4
+ONSET_THRESHOLD = 2e-4
 NSOURCES = 4
 
 parser = argparse.ArgumentParser()
@@ -47,7 +47,7 @@ parser.add_argument(
 # )
 
 def main(conf):
-   
+
     model_dict = {4:'3223090',8:'2178900'}
 
     if os.path.isdir(conf["dataset_path"]):
@@ -62,6 +62,10 @@ def main(conf):
     left = {file.name.split('_',1)[1]:file.name.split('_',1)[0] for file in os.scandir(left_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()}
     right_path = os.path.join(conf["dataset_path"],'Right')
     right = {file.name.split('_',1)[1]:file.name.split('_',1)[0] for file in os.scandir(right_path) if file.name[-4:]=='.wav' and file.stat().st_size>MIN_FILE_SIZE and not file.name.startswith('.') and not file.is_dir()}
+    
+    # left = {k: v for k, v in sorted(left.items(), key=lambda item: item[0]) if 'June_08_2023_35306211.wav' in k}
+    # right = {k: v for k, v in sorted(right.items(), key=lambda item: item[0]) if 'June_08_2023_35306211.wav' in k}
+    
     md = pd.DataFrame(columns=['ID_left', 'ID_right', 'sep_path','left_path', 'right_path','timestamp','time'])
     i=0
     for timestamp,id in (left.items()):
@@ -129,8 +133,7 @@ def main(conf):
                 lowcut=100 #Hz - higher frequency cutoff since these are bird sounds
                 [b,a] = scipy.signal.butter(4,lowcut, fs=sample_rate, btype='high')
                 input_wav = scipy.signal.lfilter(b,a,input_mix)
-               
-                
+
                 # # rms is not a good measure because some signals have low amplitude while air conditioning ones have high amplitude
                 # rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(input_wav, window=np.ones, center=False))[0])
                 # # zero crossing rate is not very stable, noise can have high zcr
@@ -141,10 +144,11 @@ def main(conf):
                 on = librosa.onset.onset_strength(S=librosa.feature.melspectrogram(y=input_wav, sr=sample_rate, n_mels=128, fmin=1000, fmax=10000, hop_length=512))
                 onsets.append(np.mean(on))
                 audio.append(input_wav)
+
             if onsets[0]<ONSET_THRESHOLD and onsets[1]<ONSET_THRESHOLD:
                 print("Skipping "+timestamp+" because both channels have low onset strength.")
                 continue
-           
+
             #centroids = 'k-means++'
             for i,c in enumerate(mini_dict):
                 p = mini_dict[c]
@@ -160,7 +164,7 @@ def main(conf):
                 #sf.write(os.path.join(conf["save_dir"],'{}-{}.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(input_wav), sample_rate, 'PCM_24')
                 for s in range(NSOURCES):
                     sf.write(os.path.join(conf["save_dir"],'{}-{}-source{}.wav'.format(timestamp,p.split('_',1)[0],s+1)), separated_waveforms[s], sample_rate, 'PCM_24')
-              
+
                 # masks = sess.run(
                 #     mask_tensor,
                 #     feed_dict={input_placeholder: input_wav})[0]
@@ -184,9 +188,6 @@ def main(conf):
                 # sf.write(os.path.join(conf["save_dir"],'{}-{}.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(input_wav), sample_rate, 'PCM_24')
                 # sf.write(os.path.join(conf["save_dir"],'{}-{}-clean.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(clean), sample_rate, 'PCM_24')    
                 # sf.write(os.path.join(conf["save_dir"],'{}-{}-noise.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(noise), sample_rate, 'PCM_24')            
-               
-
-  
 
 
 if __name__ == "__main__":
