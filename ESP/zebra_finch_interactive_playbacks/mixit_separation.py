@@ -148,22 +148,24 @@ def main(conf):
             if onsets[0]<ONSET_THRESHOLD and onsets[1]<ONSET_THRESHOLD:
                 print("Skipping "+timestamp+" because both channels have low onset strength.")
                 continue
+            
+
+            ### doing the separation for two microphones jointly gives better results than doing it separately
+            input_wav = np.concatenate((audio[0],audio[1]))[np.newaxis,np.newaxis,:]
+            separated_waveforms = sess.run(
+                output_tensor,
+                feed_dict={input_placeholder: input_wav})[0]
 
             #centroids = 'k-means++'
             for i,c in enumerate(mini_dict):
                 p = mini_dict[c]
                 #import pdb;pdb.set_trace()
-                input_wav = audio[i][np.newaxis,np.newaxis,:]
-
-                ### all together now
-                separated_waveforms = sess.run(
-                    output_tensor,
-                    feed_dict={input_placeholder: input_wav})[0]
-                
+                start = i * len(audio[i])
+                end = start + len(audio[i])
                 ### save audio
                 #sf.write(os.path.join(conf["save_dir"],'{}-{}.wav'.format(timestamp,p.split('_',1)[0])),np.squeeze(input_wav), sample_rate, 'PCM_24')
                 for s in range(NSOURCES):
-                    sf.write(os.path.join(conf["save_dir"],'{}-{}-source{}.wav'.format(timestamp,p.split('_',1)[0],s+1)), separated_waveforms[s], sample_rate, 'PCM_24')
+                    sf.write(os.path.join(conf["save_dir"],'{}-{}-source{}.wav'.format(timestamp,p.split('_',1)[0],s+1)), separated_waveforms[s][start:end], sample_rate, 'PCM_24')
 
                 # masks = sess.run(
                 #     mask_tensor,
