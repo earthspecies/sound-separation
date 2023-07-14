@@ -156,7 +156,7 @@ def main(conf):
 
                 
                 ### normalize
-                pred_bird = pred_bird/np.max(np.abs(pred_bird))
+                pred_bird =  np.nan_to_num(pred_bird/(np.max(np.abs(pred_bird))+1e-8))
 
                 frames2time = 512/sample_rate
                 spec = librosa.magphase(librosa.stft(pred_bird, n_fft=2048, hop_length=512, win_length=2048, window=np.ones, center=True))[0]
