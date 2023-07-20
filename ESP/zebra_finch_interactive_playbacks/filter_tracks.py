@@ -122,6 +122,7 @@ def main(conf):
                     else:
                         audio[i,s-1,:] = input_mix
                     waveform = librosa.util.normalize(input_mix) 
+                    waveform =  np.nan_to_num(waveform)
                     scores, _, _ = model(waveform)
                     scores_np = scores.numpy()
                     scores_birds = scores_np[:,bird_ids]
@@ -145,6 +146,8 @@ def main(conf):
                 f0, voiced_flag, voiced_probs = librosa.pyin(pred_bird.sum(axis=0), fmin=200,fmax=3000, sr=sample_rate, frame_length=2048, hop_length=512, fill_na=0, center=False,switch_prob=0.1,no_trough_prob=0.01)
                 rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(pred_bird.sum(axis=0), n_fft=2048, hop_length=512, win_length=2048, window=np.ones, center=False))[0]).squeeze()
                 rms = librosa.util.normalize(rms) 
+                rms =  np.nan_to_num(rms)
+                voiced_probs =  np.nan_to_num(voiced_probs)
                 mask = np.logical_and(voiced_probs>0.05, rms>0.05)
                 mask_samples=np.array([[any(mask[i-2:i+6])]*512 for i in range(len(mask))]).flatten()[0:len(pred_bird.sum(axis=0))]
                 mask_samples = list(mask_samples)
