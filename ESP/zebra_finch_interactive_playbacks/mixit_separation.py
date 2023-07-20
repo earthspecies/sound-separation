@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import sklearn
 from sklearn import cluster, pipeline
 
+import noisereduce 
 
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
@@ -30,6 +31,7 @@ tf.disable_v2_behavior()
 from contextlib import redirect_stdout
 
 MIN_FILE_SIZE = 1000
+ONSET_THRESHOLDNR = 3e-6
 ONSET_THRESHOLD = 2e-4
 NSOURCES = 4
 
@@ -125,6 +127,7 @@ def main(conf):
             #     continue
             timestamp = row['timestamp']
             onsets = []
+            onsetsnr = []
             audio = []
             mini_dict = {'Left':row['left_path'],'Right':row['right_path']}
             for c,p in mini_dict.items():
@@ -133,6 +136,7 @@ def main(conf):
                 lowcut=100 #Hz - higher frequency cutoff since these are bird sounds
                 [b,a] = scipy.signal.butter(4,lowcut, fs=sample_rate, btype='high')
                 input_wav = scipy.signal.lfilter(b,a,input_mix)
+                nr_wav = noisereduce.reduce_noise(y=input_wav, sr=sample_rate)
 
                 # # rms is not a good measure because some signals have low amplitude while air conditioning ones have high amplitude
                 # rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(input_wav, window=np.ones, center=False))[0])
@@ -143,9 +147,11 @@ def main(conf):
                 # spectral flux onset seems to be the best feature but the threshold might be problematic with the sparse calls
                 on = librosa.onset.onset_strength(S=librosa.feature.melspectrogram(y=input_wav, sr=sample_rate, n_mels=128, fmin=1000, fmax=10000, hop_length=512))
                 onsets.append(np.mean(on))
+                onnr = librosa.onset.onset_strength(S=librosa.feature.melspectrogram(y=nr_wav, sr=sample_rate, n_mels=128, fmin=1000, fmax=10000, hop_length=512))
+                onsetsnr.append(np.mean(onnr))
                 audio.append(input_wav)
-
-            if onsets[0]<ONSET_THRESHOLD and onsets[1]<ONSET_THRESHOLD:
+            #import pdb;pdb.set_trace()
+            if (onsets[0]<ONSET_THRESHOLD and onsets[1]<ONSET_THRESHOLD) or (onsetsnr[0]<ONSET_THRESHOLDNR and onsetsnr[1]<ONSET_THRESHOLDNR):
                 print("Skipping "+timestamp+" because both channels have low onset strength.")
                 continue
             
