@@ -131,7 +131,7 @@ def main(conf):
             audio = []
             mini_dict = {'Left':row['left_path'],'Right':row['right_path']}
             for c,p in mini_dict.items():
-                input_mix,sample_rate = librosa.load(os.path.join(conf["dataset_path"],c,p))
+                input_mix,sample_rate = librosa.load(os.path.join(conf["dataset_path"],c,p), sr=22050)
                 # # ### DC offset removal
                 lowcut=100 #Hz - higher frequency cutoff since these are bird sounds
                 [b,a] = scipy.signal.butter(4,lowcut, fs=sample_rate, btype='high')
@@ -155,7 +155,9 @@ def main(conf):
                 print("Skipping "+timestamp+" because both channels have low onset strength.")
                 continue
             
-
+            # print(timestamp)
+            # print(np.round(onsets,5))
+            
             ### doing the separation for two microphones jointly gives better results than doing it separately
             input_wav = np.concatenate((audio[0],audio[1]))[np.newaxis,np.newaxis,:]
             separated_waveforms = sess.run(
