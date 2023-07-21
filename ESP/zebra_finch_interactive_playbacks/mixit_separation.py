@@ -14,7 +14,6 @@ from io import StringIO
 
 import pcen_snr
 
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 import sklearn
