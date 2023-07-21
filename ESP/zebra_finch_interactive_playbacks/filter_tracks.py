@@ -15,7 +15,6 @@ import norbert
 import csv
 import bisect
 
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 import sklearn
