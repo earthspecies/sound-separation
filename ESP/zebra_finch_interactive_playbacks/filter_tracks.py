@@ -307,7 +307,7 @@ def main(conf):
                                 sal1 = librosa.salience(spec[1,:,peaks1[idxp1]-6:peaks1[idxp1]+6], freqs=freqs, harmonics=harms, weights=weights, fill_value=0)
                                 if PLOT: print(peaks0[idxp0], np.round(np.corrcoef(librosa.util.normalize(sal1).sum(axis=1),librosa.util.normalize(sal0).sum(axis=1))[0,1],2), np.round(sal.mean(),2), np.round(sal0.mean(),2), np.round(sal1.mean(),2))
                                 #if np.corrcoef(librosa.util.normalize(sal1).sum(axis=1),librosa.util.normalize(sal0).sum(axis=1))[0,1] < 0.5 and sal.mean()>0.4 and (np.maximum(sal1.mean(),sal0.mean())/np.minimum(sal0.mean(),sal1.mean()) < 2):
-                                if np.corrcoef(librosa.util.normalize(sal1).sum(axis=1),librosa.util.normalize(sal0).sum(axis=1))[0,1] < 0.55 and sal.mean()>0.1 and (np.maximum(sal1.mean(),sal0.mean())/np.minimum(sal0.mean(),sal1.mean()) < 2) and sal0.mean()>0.1 and sal1.mean() < 0.1:
+                                if np.corrcoef(librosa.util.normalize(sal1).sum(axis=1),librosa.util.normalize(sal0).sum(axis=1))[0,1] < 0.55 and sal.mean()>0.2 and (np.maximum(sal1.mean(),sal0.mean())/np.minimum(sal0.mean(),sal1.mean()) < 2) and sal0.mean()>0.15 and sal1.mean() < 0.15:
                                     ##### both birds vocalize at the same time
                                     onset = get_onset(rms[0], rms[1], peaks0[idxp0],10)
                                     offset = get_offset(rms[0], rms[1], peaks0[idxp0],10)
