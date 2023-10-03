@@ -147,6 +147,7 @@ def main(conf):
         md = pd.read_csv(os.path.join(conf["dataset_path"],'separation','metadata.csv'))
         filtered_md = pd.DataFrame(columns=["timestamp","time","ID_left","ID_right","sep_path","bird","noise","left_csv","right_csv"])
         
+        md_vox = pd.DataFrame(columns=['fn','audio_fp', 'selection_table_fp'])
         for index, row in md.iterrows():
             audio = []
             mini_dict = {'Left':row['ID_left'],'Right':row['ID_right']}
@@ -224,7 +225,7 @@ def main(conf):
                     
                 
                     ### eliminate noise from bird track
-                    f0, voiced_flag, voiced_probs = librosa.pyin(pred_bird.sum(axis=0), fmin=200,fmax=4000, sr=sample_rate, frame_length=2048, hop_length=512, fill_na=0, center=False,switch_prob=0.1,no_trough_prob=0.01)
+                    f0, voiced_flag, voiced_probs = librosa.pyin(pred_bird.sum(axis=0), fmin=200,fmax=2000, sr=sample_rate, frame_length=2048, hop_length=512, fill_na=0, center=False,switch_prob=0.1,no_trough_prob=0.01)
                     rms = librosa.feature.rms(S=librosa.magphase(librosa.stft(pred_bird.sum(axis=0), n_fft=2048, hop_length=512, win_length=2048, window=np.ones, center=False))[0]).squeeze()
                     rms = librosa.util.normalize(rms) 
                     # f0, voiced_flag, voiced_probs = librosa.pyin(pred_bird, fmin=200,fmax=4000, sr=sample_rate, frame_length=2048, hop_length=512, fill_na=0, center=False,switch_prob=0.1,no_trough_prob=0.01)
@@ -274,6 +275,10 @@ def main(conf):
                         birds = [row['ID_left'],row['ID_right']]
                         channels = ['left','right']
                         bird_events = [[],[]]
+                        ### save diarization as Raven
+                        md_raven = pd.DataFrame(columns=['Selection','View','Channel','Begin Time (s)','End Time (s)','Low Freq (Hz)','High Freq (Hz)','Annotation'])
+                        
+                        
                         ### determine which bird is vocalizing
                         idxp0 = 0
                         idxp1 = 0
@@ -285,6 +290,7 @@ def main(conf):
                                 onset = get_onset(rms[0], rms[1], peaks0[idxp0],10)
                                 offset = get_offset(rms[0], rms[1], peaks0[idxp0],10)
                                 bird_events[0].append([np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),rms[0][peaks0[idxp0]]])
+                                md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',0,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Left']
                                 if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[0])
                                 idxp0 += 1
                                 birdl = True
@@ -293,6 +299,7 @@ def main(conf):
                                 onset = get_onset(rms[1], rms[0], peaks1[idxp1],10)
                                 offset = get_offset(rms[1], rms[0], peaks1[idxp1],10)
                                 bird_events[1].append([np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),rms[1][peaks1[idxp1]]])
+                                md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',1,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Right']
                                 if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[1])
                                 idxp1 += 1
                                 birdr = True
@@ -312,6 +319,7 @@ def main(conf):
                                     onset = get_onset(rms[0], rms[1], peaks0[idxp0],10)
                                     offset = get_offset(rms[0], rms[1], peaks0[idxp0],10)
                                     bird_events[0].append([np.round((onset+1)*frames2time,2),np.round(offset*frames2time,2),rms[0][peaks0[idxp0]]])
+                                    md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',0,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Overlap']
                                     if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[0])
                                     onset = get_onset(rms[1], rms[0], peaks1[idxp1],10)
                                     offset = get_offset(rms[1], rms[0], peaks1[idxp1],10)
@@ -325,6 +333,7 @@ def main(conf):
                                         onset = get_onset(rms[0], rms[1], peaks0[idxp0],10)
                                         offset = get_offset(rms[0], rms[1], peaks0[idxp0],10)
                                         bird_events[0].append([np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),rms[0][peaks0[idxp0]]])
+                                        md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',0,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Left']
                                         if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[0])
                                         birdl = True
                                     else:
@@ -332,6 +341,7 @@ def main(conf):
                                         onset = get_onset(rms[1], rms[0], peaks1[idxp1],10)
                                         offset = get_offset(rms[1], rms[0], peaks1[idxp1],10)
                                         bird_events[1].append([np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),rms[1][peaks1[idxp1]]])
+                                        md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',1,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Right']
                                         if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[1])
                                         birdr = True
                                 idxp0 += 1
@@ -341,6 +351,7 @@ def main(conf):
                                 onset = get_onset(rms[0], rms[1], peaks0[idxp0],10)
                                 offset = get_offset(rms[0], rms[1], peaks0[idxp0],10)
                                 bird_events[0].append([np.round((onset+1)*frames2time,2),np.round(offset*frames2time,2),rms[0][peaks0[idxp0]]])
+                                md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',0,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Left']
                                 if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[0])
                                 idxp0 += 1
                                 birdl = True
@@ -349,16 +360,19 @@ def main(conf):
                                 onset = get_onset(rms[1], rms[0], peaks1[idxp1],10)
                                 offset = get_offset(rms[1], rms[0], peaks1[idxp1],10)
                                 bird_events[1].append([np.round((onset+1)*frames2time,2),np.round(offset*frames2time,2),rms[1][peaks1[idxp1]]])
+                                md_raven.loc[len(md_raven)] = [len(md_raven)+1,'Waveform 1',1,np.round((onset+1)*frames2time,2),np.round((offset+1)*frames2time,2),200,6000,'Right']
                                 if PLOT: ax.axvspan(onset, offset, alpha=0.5, color=colors[1])
                                 idxp1 += 1
                                 birdr = True
 
+                
                         ### save detection/diarization results
                         for idx in range(2):
                             with open(os.path.join(conf["save_dir"],'{}-{}-{}.csv'.format(row['timestamp'],channels[idx],birds[idx])), 'w') as f:
                                 write = csv.writer(f)
                                 write.writerow(['start','end','rms'])
                                 write.writerows(bird_events[idx])
+                        md_raven.to_csv(os.path.join(conf["save_dir"],'{}.Table.1.selections.txt'.format(row['timestamp'])), index=False)
                         if PLOT:       
                             plt.title(row['sep_path'])
                             plt.legend()
@@ -366,6 +380,8 @@ def main(conf):
 
                         rowf = [row['time'],row['timestamp'], row['ID_left'], row['ID_right'], row["sep_path"],'{}-{}-{}-bird.wav'.format(row['timestamp'], row['ID_left'], row['ID_right']),'{}-{}-{}-noise.wav'.format(row['timestamp'], row['ID_left'], row['ID_right']),'{}-{}-{}.csv'.format(row['timestamp'],'left',birds[0]),'{}-{}-{}.csv'.format(row['timestamp'],'right',birds[1])]
                         filtered_md.loc[len(filtered_md)] = rowf
+                        ### save voxaboxen files
+                        md_vox.loc[len(md_vox)] = ['{}-{}-{}-bird.wav'.format(row['timestamp'], row['ID_left'], row['ID_right']), os.path.join(conf["save_dir"],'{}-{}-{}-bird.wav'.format(row['timestamp'], row['ID_left'], row['ID_right'])), os.path.join(conf["save_dir"],'{}.Table.1.selections.txt'.format(row['timestamp']))]
                     else:
                         print("Skipping "+row["sep_path"]+" because too many peaks were detected.")
                 else:
@@ -375,6 +391,7 @@ def main(conf):
                 print("Skipping "+row["sep_path"]+" because there are no bird predictions above threshold in any of the separations.")
 
     filtered_md.to_csv(os.path.join(conf["save_dir"],'metadata.csv'), index=False)
+    md_vox.to_csv(os.path.join(conf["dataset_path"],'voxaboxen.csv'), index=False)
 
 
 if __name__ == "__main__":
